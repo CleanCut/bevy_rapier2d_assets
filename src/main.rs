@@ -7,12 +7,17 @@ use bevy_rapier2d_assets::BevyRapier2dAssetsPlugin;
 fn main() {
     App::new()
         .insert_resource(ImageSettings::default_nearest())
+        .insert_resource(MouseLocation(Vec2::ZERO))
         .add_plugins(DefaultPlugins)
         .add_plugin(BevyRapier2dAssetsPlugin)
         .add_startup_system(setup)
         .add_system(adjust_scale)
+        .add_system(handle_mouse)
         .run();
 }
+
+#[derive(Debug, Copy, Clone)]
+struct MouseLocation(Vec2);
 
 #[derive(Component)]
 struct MainImage;
@@ -74,8 +79,32 @@ fn adjust_scale(
     }
 }
 
-fn handle_mouse(mut mouse_button_input_events: EventReader<MouseButtonInput>) {
-    for event in mouse_button_input_events.iter() {
-        event
+fn handle_mouse(
+    mut cursor_moved_events: EventReader<CursorMoved>,
+    mouse_button_input: Res<Input<MouseButton>>,
+    mut mouse_location: ResMut<MouseLocation>,
+    windows: Res<Windows>,
+    mut query: Query<&mut Transform, With<MainImage>>,
+) {
+    // Get window dimensions
+    // It's possible to not have window dimensions for the first frame or two
+    let window_dimensions;
+    if let Some(window) = windows.get_primary() {
+        window_dimensions = Vec2::new(window.width(), window.height());
+    } else {
+        return;
+    }
+
+    // Update the mouse location
+    if let Some(event) = cursor_moved_events.iter().last() {
+        mouse_location.0 = event.position - window_dimensions * 0.5;
+        println!("{:?}", mouse_location);
+    }
+
+    // Handle mouse click
+    if mouse_button_input.just_pressed(MouseButton::Left) {
+        if let Ok(mut transform) = query.get_single_mut() {
+            transform.translation = mouse_location.0.extend(0.0);
+        }
     }
 }
