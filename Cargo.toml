@@ -8,4 +8,5 @@ edition = "2021"
 [dependencies]
 bevy = "0.8"
 bevy_rapier2d = "0.16.0"
-bevy_common_assets = "0.3.0"
+bevy_common_assets = { version = "0.3.0", features = [ "ron" ] }
+serde = { version = "1.0.143", features = ["derive"] }
