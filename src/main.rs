@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use bevy::{input::mouse::MouseButtonInput, prelude::*, render::texture::ImageSettings};
+use bevy::{prelude::*, render::texture::ImageSettings};
 use bevy_rapier2d::prelude::*;
 use bevy_rapier2d_assets::BevyRapier2dAssetsPlugin;
 
@@ -8,8 +8,11 @@ fn main() {
     App::new()
         .insert_resource(ImageSettings::default_nearest())
         .insert_resource(MouseLocation(Vec2::ZERO))
+        .insert_resource(Scale(1.0))
         .add_plugins(DefaultPlugins)
         .add_plugin(BevyRapier2dAssetsPlugin)
+        .add_plugin(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(5.0))
+        .add_plugin(RapierDebugRenderPlugin::default())
         .add_startup_system(setup)
         .add_system(adjust_scale)
         .add_system(handle_mouse)
@@ -18,6 +21,9 @@ fn main() {
 
 #[derive(Debug, Copy, Clone)]
 struct MouseLocation(Vec2);
+
+#[derive(Debug, Copy, Clone)]
+struct Scale(f32);
 
 #[derive(Component)]
 struct MainImage;
@@ -47,6 +53,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 fn adjust_scale(
     keyboard_input: Res<Input<KeyCode>>,
     mut query: Query<&mut Transform, With<MainImage>>,
+    mut scale: ResMut<Scale>,
 ) {
     let scale_change = if keyboard_input.just_pressed(KeyCode::Key1) {
         Some(1.0)
@@ -72,9 +79,10 @@ fn adjust_scale(
         None
     };
 
-    if let Some(scale) = scale_change {
+    if let Some(new_scale) = scale_change {
+        scale.0 = new_scale;
         for mut transform in &mut query {
-            transform.scale = Vec3::splat(scale);
+            transform.scale = Vec3::splat(new_scale);
         }
     }
 }
@@ -85,6 +93,7 @@ fn handle_mouse(
     mut mouse_location: ResMut<MouseLocation>,
     windows: Res<Windows>,
     mut query: Query<&mut Transform, With<MainImage>>,
+    scale: Res<Scale>,
 ) {
     // Get window dimensions
     // It's possible to not have window dimensions for the first frame or two
@@ -97,7 +106,7 @@ fn handle_mouse(
 
     // Update the mouse location
     if let Some(event) = cursor_moved_events.iter().last() {
-        mouse_location.0 = event.position - window_dimensions * 0.5;
+        mouse_location.0 = event.position - (window_dimensions * 0.5);
         println!("{:?}", mouse_location);
     }
 
