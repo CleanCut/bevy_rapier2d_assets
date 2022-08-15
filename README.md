@@ -4,6 +4,8 @@
 
 `bevy_rapier2d_assets` is a [bevy](https://github.com/bevyengine/bevy/) plugin to make it easy to load [bevy_rapier2d](https://github.com/dimforge/bevy_rapier) physics assets from disk, and a graphical editor to create said physics assets from image files.
 
+THIS IS CURRENTLY IN A PRE-ALPHA STATE WHILE IT IS BEING CREATED. IT IS NOT YET READY TO USE! I WILL REPLACE THIS PARAGRAPH WITH A QUICK-START SECTION ONCE THIS IS READY TO BE USED.
+
 
 ## Huh?
 
