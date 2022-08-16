@@ -15,7 +15,8 @@ fn main() {
         .add_plugin(RapierDebugRenderPlugin::default())
         .add_startup_system(setup)
         .add_system(adjust_scale)
-        .add_system(handle_mouse)
+        .add_system(handle_mouse.label("handle_mouse"))
+        .add_system(reconstruct_collider.after("handle_mouse"))
         .run();
 }
 
@@ -26,7 +27,9 @@ struct MouseLocation(Vec2);
 struct Scale(f32);
 
 #[derive(Component)]
-struct MainImage;
+struct MainImage {
+    dirty: bool,
+}
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     asset_server.watch_for_changes().unwrap();
@@ -52,7 +55,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             points: Vec::new(),
             sensor: false,
         })
-        .insert(MainImage);
+        .insert(MainImage { dirty: true });
 }
 
 fn adjust_scale(
@@ -97,7 +100,7 @@ fn handle_mouse(
     mouse_button_input: Res<Input<MouseButton>>,
     mut mouse_location: ResMut<MouseLocation>,
     windows: Res<Windows>,
-    mut query: Query<(&mut Transform, &mut SpritePhysicsAsset), With<MainImage>>,
+    mut query: Query<(&mut Transform, &mut SpritePhysicsAsset, &mut MainImage)>,
     scale: Res<Scale>,
 ) {
     // Get window dimensions
@@ -116,12 +119,44 @@ fn handle_mouse(
 
     // Handle mouse click
     if mouse_button_input.just_pressed(MouseButton::Left) {
-        if let Ok((mut _transform, mut sprite_physics_asset)) = query.get_single_mut() {
+        if let Ok((mut _transform, mut sprite_physics_asset, mut main_image)) =
+            query.get_single_mut()
+        {
             //transform.translation = mouse_location.0.extend(0.0);
             let scaled = mouse_location.0 / scale.0;
             let rounded_scaled = (scaled * 2.0).round() * 0.5; // round to nearest half
             sprite_physics_asset.points.push(rounded_scaled);
+            main_image.dirty = true;
             println!("{:?}", sprite_physics_asset.points);
         }
+    }
+}
+
+fn reconstruct_collider(
+    mut commands: Commands,
+    mut query: Query<(Entity, &mut MainImage, &mut SpritePhysicsAsset)>,
+) {
+    for (entity, mut main_image, mut sprite_physics_asset) in &mut query {
+        if !main_image.dirty {
+            return;
+        }
+        main_image.dirty = false;
+        if sprite_physics_asset.points.len() < 3 {
+            return;
+        }
+        let length = sprite_physics_asset.points.len();
+        let mut indices = Vec::new();
+        for i in 0..length {
+            let a = i;
+            let b = if a + 1 < length { a + 1 } else { 0 };
+            indices.push([a as u32, b as u32]);
+        }
+        commands
+            .entity(entity)
+            .remove::<Collider>()
+            .insert(Collider::convex_decomposition(
+                &sprite_physics_asset.points,
+                &indices,
+            ));
     }
 }
