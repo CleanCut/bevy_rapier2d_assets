@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use bevy::{prelude::*, render::texture::ImageSettings};
 use bevy_rapier2d::prelude::*;
-use bevy_rapier2d_assets::BevyRapier2dAssetsPlugin;
+use bevy_rapier2d_assets::{BevyRapier2dAssetsPlugin, SpritePhysicsAsset};
 
 fn main() {
     App::new()
@@ -44,8 +44,13 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     }
     commands
         .spawn_bundle(SpriteBundle {
-            texture: asset_server.load(file),
+            texture: asset_server.load(&*file),
             ..Default::default()
+        })
+        .insert(SpritePhysicsAsset {
+            img_file: file,
+            points: Vec::new(),
+            sensor: false,
         })
         .insert(MainImage);
 }
@@ -92,7 +97,7 @@ fn handle_mouse(
     mouse_button_input: Res<Input<MouseButton>>,
     mut mouse_location: ResMut<MouseLocation>,
     windows: Res<Windows>,
-    mut query: Query<&mut Transform, With<MainImage>>,
+    mut query: Query<(&mut Transform, &mut SpritePhysicsAsset), With<MainImage>>,
     scale: Res<Scale>,
 ) {
     // Get window dimensions
@@ -107,13 +112,16 @@ fn handle_mouse(
     // Update the mouse location
     if let Some(event) = cursor_moved_events.iter().last() {
         mouse_location.0 = event.position - (window_dimensions * 0.5);
-        println!("{:?}", mouse_location);
     }
 
     // Handle mouse click
     if mouse_button_input.just_pressed(MouseButton::Left) {
-        if let Ok(mut transform) = query.get_single_mut() {
-            transform.translation = mouse_location.0.extend(0.0);
+        if let Ok((mut _transform, mut sprite_physics_asset)) = query.get_single_mut() {
+            //transform.translation = mouse_location.0.extend(0.0);
+            let scaled = mouse_location.0 / scale.0;
+            let rounded_scaled = (scaled * 2.0).round() * 0.5; // round to nearest half
+            sprite_physics_asset.points.push(rounded_scaled);
+            println!("{:?}", sprite_physics_asset.points);
         }
     }
 }
