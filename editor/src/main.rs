@@ -3,6 +3,11 @@ use std::path::PathBuf;
 use bevy::{prelude::*, render::texture::ImageSettings};
 use bevy_rapier2d::prelude::*;
 use bevy_rapier2d_assets::{BevyRapier2dAssetsPlugin, SpritePhysicsAsset};
+use lyon::{
+    geom::euclid::Point2D,
+    lyon_tessellation::{BuffersBuilder, FillOptions, FillTessellator, FillVertex, VertexBuffers},
+    path::Path,
+};
 
 fn main() {
     App::new()
@@ -127,7 +132,7 @@ fn handle_mouse(
             let rounded_scaled = (scaled * 2.0).round() * 0.5; // round to nearest half
             sprite_physics_asset.points.push(rounded_scaled);
             main_image.dirty = true;
-            println!("{:?}", sprite_physics_asset.points);
+            // println!("{:?}", sprite_physics_asset.points);
         }
     }
 }
@@ -144,19 +149,63 @@ fn reconstruct_collider(
         if sprite_physics_asset.points.len() < 3 {
             return;
         }
-        let length = sprite_physics_asset.points.len();
-        let mut indices = Vec::new();
-        for i in 0..length {
-            let a = i;
-            let b = if a + 1 < length { a + 1 } else { 0 };
-            indices.push([a as u32, b as u32]);
+        // let length = sprite_physics_asset.points.len();
+        // let mut indices = Vec::new();
+        // for i in 0..length {
+        //     let a = i;
+        //     let b = if a + 1 < length { a + 1 } else { 0 };
+        //     indices.push([a as u32, b as u32]);
+        // }
+        // commands
+        //     .entity(entity)
+        //     .remove::<Collider>()
+        //     .insert(Collider::convex_decomposition(
+        //         &sprite_physics_asset.points,
+        //         &indices,
+        //     ));
+        let mut points = sprite_physics_asset.points.clone();
+        let mut builder = Path::builder();
+        builder.begin(points.pop().unwrap().to_array().into());
+        for point in points {
+            builder.line_to(point.to_array().into());
         }
+        builder.close();
+        let path = builder.build();
+
+        let mut geometry: VertexBuffers<Vec2, usize> = VertexBuffers::new();
+
+        let mut tessellator = FillTessellator::new();
+
+        {
+            // Compute the tessellation.
+            tessellator
+                .tessellate_path(
+                    &path,
+                    &FillOptions::default(),
+                    &mut BuffersBuilder::new(&mut geometry, |vertex: FillVertex| {
+                        Vec2::from_array(vertex.position().to_array())
+                    }),
+                )
+                .unwrap();
+        }
+
+        let mut colliders = Vec::new();
+        let mut chunks = geometry.indices.chunks_exact(3);
+        while let Some(inner_chunk) = chunks.next() {
+            colliders.push((
+                Vec2::ZERO,
+                0.0,
+                Collider::triangle(
+                    geometry.vertices[inner_chunk[0]],
+                    geometry.vertices[inner_chunk[1]],
+                    geometry.vertices[inner_chunk[2]],
+                ),
+            ))
+        }
+
         commands
             .entity(entity)
             .remove::<Collider>()
-            .insert(Collider::convex_decomposition(
-                &sprite_physics_asset.points,
-                &indices,
-            ));
+            .insert(Collider::compound(colliders));
     }
 }

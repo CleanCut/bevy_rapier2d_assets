@@ -11,3 +11,4 @@ bevy = "0.8"
 bevy_egui = "0.15.1"
 bevy_rapier2d_assets = { version = "0.1.0", path = "../bevy_rapier2d_assets" }
 bevy_rapier2d = { git = "https://github.com/dimforge/bevy_rapier", branch = "master" }
+lyon = "1.0.0"
