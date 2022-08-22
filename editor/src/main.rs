@@ -4,7 +4,6 @@ use bevy::{prelude::*, render::texture::ImageSettings};
 use bevy_rapier2d::prelude::*;
 use bevy_rapier2d_assets::{BevyRapier2dAssetsPlugin, SpritePhysicsAsset};
 use lyon::{
-    geom::euclid::Point2D,
     lyon_tessellation::{BuffersBuilder, FillOptions, FillTessellator, FillVertex, VertexBuffers},
     path::Path,
 };
@@ -68,29 +67,37 @@ fn adjust_scale(
     mut query: Query<&mut Transform, With<MainImage>>,
     mut scale: ResMut<Scale>,
 ) {
-    let scale_change = if keyboard_input.just_pressed(KeyCode::Key1) {
-        Some(1.0)
-    } else if keyboard_input.just_pressed(KeyCode::Key2) {
-        Some(2.0)
-    } else if keyboard_input.just_pressed(KeyCode::Key3) {
-        Some(3.0)
-    } else if keyboard_input.just_pressed(KeyCode::Key4) {
-        Some(4.0)
-    } else if keyboard_input.just_pressed(KeyCode::Key5) {
-        Some(5.0)
-    } else if keyboard_input.just_pressed(KeyCode::Key6) {
-        Some(6.0)
-    } else if keyboard_input.just_pressed(KeyCode::Key7) {
-        Some(7.0)
-    } else if keyboard_input.just_pressed(KeyCode::Key8) {
-        Some(8.0)
-    } else if keyboard_input.just_pressed(KeyCode::Key9) {
-        Some(9.0)
-    } else if keyboard_input.just_pressed(KeyCode::Key0) {
-        Some(10.0)
-    } else {
-        None
-    };
+    let mut scale_change = None;
+    for &k in keyboard_input.get_just_pressed() {
+        use KeyCode::*;
+        scale_change = match k {
+            Key1 => Some(1.0),
+            Key2 => Some(2.0),
+            Key3 => Some(3.0),
+            Key4 => Some(4.0),
+            Key5 => Some(5.0),
+            Key6 => Some(6.0),
+            Key7 => Some(7.0),
+            Key8 => Some(8.0),
+            Key9 => Some(9.0),
+            Key0 => Some(10.0),
+            Plus | Equals => {
+                if scale.0.abs() < 0.9 {
+                    Some(scale.0 * 2.0)
+                } else {
+                    Some(scale.0 + 1.0)
+                }
+            }
+            Minus => {
+                if scale.0.abs() <= 1.1 {
+                    Some((scale.0 * 0.5).clamp(0.0625, 1.0))
+                } else {
+                    Some(scale.0 - 1.0)
+                }
+            }
+            _ => None,
+        };
+    }
 
     if let Some(new_scale) = scale_change {
         scale.0 = new_scale;
@@ -139,9 +146,9 @@ fn handle_mouse(
 
 fn reconstruct_collider(
     mut commands: Commands,
-    mut query: Query<(Entity, &mut MainImage, &mut SpritePhysicsAsset)>,
+    mut query: Query<(Entity, &mut MainImage, &SpritePhysicsAsset)>,
 ) {
-    for (entity, mut main_image, mut sprite_physics_asset) in &mut query {
+    for (entity, mut main_image, sprite_physics_asset) in &mut query {
         if !main_image.dirty {
             return;
         }
@@ -149,20 +156,7 @@ fn reconstruct_collider(
         if sprite_physics_asset.points.len() < 3 {
             return;
         }
-        // let length = sprite_physics_asset.points.len();
-        // let mut indices = Vec::new();
-        // for i in 0..length {
-        //     let a = i;
-        //     let b = if a + 1 < length { a + 1 } else { 0 };
-        //     indices.push([a as u32, b as u32]);
-        // }
-        // commands
-        //     .entity(entity)
-        //     .remove::<Collider>()
-        //     .insert(Collider::convex_decomposition(
-        //         &sprite_physics_asset.points,
-        //         &indices,
-        //     ));
+
         let mut points = sprite_physics_asset.points.clone();
         let mut builder = Path::builder();
         builder.begin(points.pop().unwrap().to_array().into());
@@ -176,19 +170,18 @@ fn reconstruct_collider(
 
         let mut tessellator = FillTessellator::new();
 
-        {
-            // Compute the tessellation.
-            tessellator
-                .tessellate_path(
-                    &path,
-                    &FillOptions::default(),
-                    &mut BuffersBuilder::new(&mut geometry, |vertex: FillVertex| {
-                        Vec2::from_array(vertex.position().to_array())
-                    }),
-                )
-                .unwrap();
-        }
+        // Compute the tessellation.
+        tessellator
+            .tessellate_path(
+                &path,
+                &FillOptions::default(),
+                &mut BuffersBuilder::new(&mut geometry, |vertex: FillVertex| {
+                    Vec2::from_array(vertex.position().to_array())
+                }),
+            )
+            .unwrap();
 
+        // Convert the tesselated triangles into a compound collider of triangle colliders
         let mut colliders = Vec::new();
         let mut chunks = geometry.indices.chunks_exact(3);
         while let Some(inner_chunk) = chunks.next() {
